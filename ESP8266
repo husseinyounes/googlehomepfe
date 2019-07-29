@@ -1,0 +1,321 @@
+#include <Adafruit_MQTT.h>
+#include <Adafruit_MQTT_Client.h>
+
+#include <EEPROM.h>
+ 
+#include <ESP8266WiFi.h>
+
+
+#include <Time.h>
+#include <TimeAlarms.h>
+
+
+
+const int relayPin = 16;
+const int relayPin1 = 13;
+
+
+#define WLAN_SSID       "------------"             // Your SSID
+#define WLAN_PASS       "------"        // Your password
+
+/************************* Adafruit.io Setup *********************************/
+
+#define AIO_SERVER      "io.adafruit.com"
+#define AIO_SERVERPORT  1883                   // use 8883 for SSL
+#define AIO_USERNAME    "---------------"            // Replace it with your username
+#define AIO_KEY         "---------------------"   // Replace with your Project Auth Key
+
+/************ Global State (you don't need to change this!) ******************/
+
+// Create an ESP8266 WiFiClient class to connect to the MQTT server.
+WiFiClient client;
+// or... use WiFiFlientSecure for SSL
+//WiFiClientSecure client;
+
+// Setup the MQTT client class by passing in the WiFi client and MQTT server and login details.
+Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO_KEY);
+
+/****************************** Feeds ***************************************/
+
+
+// Setup a feed called 'onoff' for subscribing to changes.
+Adafruit_MQTT_Subscribe Light1 = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME"/feeds/light1"); // FeedName
+Adafruit_MQTT_Subscribe Light2 = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/light2");
+Adafruit_MQTT_Subscribe LightAll = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/allon");
+
+Adafruit_MQTT_Subscribe voltage = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/voltage");
+
+
+////////////////////////////////////
+int timezone = 3 * 3600;
+int dst = 0;
+///////////////////////////////////
+int offset =20;
+/////////////////////////////////
+
+
+void MQTT_connect();
+void lastState(){
+  Serial.println();
+  
+  Serial.print("Relay 1 :");
+  Serial.print(EEPROM.read(0));
+  Serial.println();
+
+  Serial.print("Relay 2 :");
+  Serial.print(EEPROM.read(1));
+  Serial.println();
+  
+  if(EEPROM.read(0) == 1){
+    digitalWrite(relayPin,LOW);
+  }else{
+    digitalWrite(relayPin,HIGH);
+  }
+
+  if(EEPROM.read(1) == 1){
+    digitalWrite(relayPin1,LOW);
+  }else{
+    digitalWrite(relayPin1,HIGH);
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  EEPROM.begin(512);
+
+  pinMode(relayPin, OUTPUT);
+  pinMode(relayPin1, OUTPUT);
+
+
+
+  lastState();
+  
+  // Connect to WiFi access point.
+  Serial.println(); Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(WLAN_SSID);
+
+  WiFi.begin(WLAN_SSID, WLAN_PASS);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println();
+
+
+
+  Serial.println("WiFi connected");
+  Serial.println("IP address: "); 
+  Serial.println(WiFi.localIP());
+ 
+
+  // Setup MQTT subscription for onoff feed.
+  mqtt.subscribe(&Light1);
+  mqtt.subscribe(&Light2);
+  mqtt.subscribe(&LightAll);
+  mqtt.subscribe(&voltage);
+//////////////////////////////////////////////////////////////////////
+  configTime(timezone, dst, "pool.ntp.org","time.nist.gov");
+  while(!time(nullptr)){
+     Serial.print("*");
+     delay(1000);
+  }
+////////////////////////////////////////////////////////////////////
+
+
+ //setTime(10,58,0,5,1,19); // set time to 8:29:00am Jan 1 2010
+ // create the alarms 
+// Alarm.alarmRepeat(20, MorningAlarm);  // 8:30am every day
+
+
+ 
+
+}
+
+
+/*void MorningAlarm(){
+  Serial.println("15 second timer");         
+digitalWrite(relayPin,HIGH); 
+ EEPROM.commit(); 
+}*/
+
+
+
+void turnon(int hour,int min)
+{
+
+  time_t now = time(nullptr);
+    struct tm* p_tm = localtime(&now);
+     
+    // TURN LED ON
+  
+
+    if( (p_tm->tm_hour == hour) && (p_tm->tm_min == min)){
+        digitalWrite(relayPin,LOW);
+        Serial.print("Light  > ");
+      Serial.print(F("Got: "));
+      Serial.println((char *)Light2.lastread);
+    }
+}
+
+
+
+
+
+
+
+
+void loop() {
+ 
+  MQTT_connect();
+
+  Adafruit_MQTT_Subscribe *subscription;
+
+///////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////
+/////////////////////SCHEDULE TIME/////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
+
+      time_t now = time(nullptr);
+    struct tm* p_tm = localtime(&now);
+     
+    // TURN LED ON
+  
+
+    if( (p_tm->tm_hour == 16) && (p_tm->tm_min == 30)){
+        digitalWrite(relayPin,LOW);
+        Serial.print("Light2  > ");
+      Serial.print(F("Got: "));
+      Serial.println((char *)Light2.lastread);
+    }
+    
+
+    // TURN LED OFF
+  
+
+    if( (p_tm->tm_hour == 16) && (p_tm->tm_min == 35)){
+        digitalWrite(relayPin,HIGH);
+        Serial.print("Light2  > ");
+      Serial.print(F("Got: "));
+      Serial.println((char *)Light2.lastread);
+    }
+
+      if( (p_tm->tm_hour == 16) && (p_tm->tm_min == 02)){
+        digitalWrite(relayPin1,LOW);
+        Serial.print("Light1  > ");
+      Serial.print(F("Got: "));
+      Serial.println((char *)Light2.lastread);
+    }
+    
+
+    // TURN LED OFF
+  
+
+    if( (p_tm->tm_hour == 17) && (p_tm->tm_min == 46)){
+        digitalWrite(relayPin1,HIGH);
+        Serial.print("Light 1 > ");
+      Serial.print(F("Got: "));
+      Serial.println((char *)Light2.lastread);
+    }
+    
+    delay(1000);
+
+  /////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////
+
+/////////////////////////Voltage/////////////////////////////////////////
+
+  int volt = analogRead(A0);// read the input
+  double voltage = map(volt,0,1023, 0, 2500) + offset;// map 0-1023 to 0-2500 and add correction offset
+  
+  voltage /=100;// divide by 100 to get the decimal values
+  double e=voltage*0.012;
+  int h=1;
+  double c=e*h;
+  Serial.print("Consumption: ");
+  Serial.print(c);//print the coonsumption
+  Serial.println("KWH");
+
+delay(500);
+
+turnon(19,27);
+
+////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+
+
+  
+  while ((subscription = mqtt.readSubscription(20000))) {
+    if (subscription == &Light1) {
+      Serial.print("Light 1 > ");
+      Serial.print(F("Got: "));
+      Serial.println((char *)Light1.lastread);
+      byte Light1_State = atoi((char *)Light1.lastread);
+      digitalWrite(relayPin, !Light1_State);
+      EEPROM.write(0, Light1_State);
+      EEPROM.commit();
+      //Serial.println(EEPROM.read(0));
+      //Serial.println(Light1_State);
+    }
+    if (subscription == &Light2) {
+      Serial.print("Light 2 > ");
+      Serial.print(F("Got: "));
+      Serial.println((char *)Light2.lastread);
+      byte Light2_State = atoi((char *)Light2.lastread);
+      digitalWrite(relayPin1, !Light2_State);
+      EEPROM.write(1, Light2_State);
+      EEPROM.commit();
+      //Serial.println(EEPROM.read(1));
+      //Serial.println(Light2_State);
+    }
+    if (subscription == &LightAll) {
+      Serial.print("Light all > ");
+      Serial.print(F("Got: "));
+      Serial.println((char *)LightAll.lastread);
+      byte Light_State = atoi((char *)LightAll.lastread);
+      digitalWrite(relayPin, !Light_State);
+      digitalWrite(relayPin1, !Light_State);
+      
+      EEPROM.write(0, Light_State);
+      EEPROM.write(1, Light_State);
+      EEPROM.commit();
+    }
+
+
+   
+  }
+   
+}
+
+void MQTT_connect() {
+  int8_t ret;
+
+  // Stop if already connected.
+  if (mqtt.connected()) {
+    //Serial.println("Connected");
+    return;
+  }
+
+  //digitalWrite(led,HIGH);
+  Serial.print("Connecting to MQTT... ");
+
+  uint8_t retries = 3;
+  
+  while ((ret = mqtt.connect()) != 0) { // connect will return 0 for connected
+    Serial.println(mqtt.connectErrorString(ret));
+    Serial.println("Retrying MQTT connection in 5 seconds...");
+    mqtt.disconnect();
+    delay(5000);  // wait 5 seconds
+    retries--;
+    if (retries == 0) {
+      // basically die and wait for WDT to reset me
+      //while (1);
+      Serial.println("Wait 10 min to reconnect");
+      delay(600000);
+    }
+  }
+  Serial.println("MQTT Connected!");
+
+}
