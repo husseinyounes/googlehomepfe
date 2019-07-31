@@ -298,7 +298,7 @@ void MQTT_connect() {
     return;
   }
 
-  //digitalWrite(led,HIGH);
+  
   Serial.print("Connecting to MQTT... ");
 
   uint8_t retries = 3;
